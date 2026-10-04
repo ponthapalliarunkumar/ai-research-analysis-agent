@@ -26,6 +26,8 @@ The agent can:
 
 ## Architecture
 
+![Architecture diagram](screenshots/architecture.svg)
+
 ```text
 User
   |
