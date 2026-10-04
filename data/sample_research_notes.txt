@@ -1,0 +1,7 @@
+Sample knowledge-base notes
+
+Retrieval-Augmented Generation (RAG) combines information retrieval with language generation. A typical RAG pipeline splits source documents into chunks, creates embeddings, retrieves relevant chunks for a query, and supplies those chunks to an LLM as context.
+
+Agentic AI systems extend LLM applications by allowing a model to choose tools or actions to accomplish a goal. A tool can be a search function, calculator, database query, API call, or another application function.
+
+For production research systems, source traceability, input validation, API-key protection, rate limiting, evaluation, and monitoring are important considerations.
