@@ -15,7 +15,7 @@ Your job is to produce useful, evidence-aware research answers.
 When the user asks for research:
 1. Understand the objective.
 2. Use web_search for current or external information.
-3. Use _knowledge_search when the uploaded knowledge base may contain relevant information.
+3. Use search_uploaded_documents when the uploaded knowledge base may contain relevant information.
 4. Use calculate when numerical calculations are needed.
 5. Synthesize the retrieved evidence instead of simply copying it.
 6. Clearly separate facts from interpretation.
@@ -40,7 +40,22 @@ class ResearchAgent:
         self.client = genai.Client(api_key=api_key)
 
     def run(self, user_request: str, history: list[dict] | None = None) -> str:
-        tools = [web_search, self._knowledge_search, calculate]
+        kb = self.knowledge_base
+
+        # A plain function (not a bound method) so the SDK can safely copy the
+        # tool list. It captures `kb` from this scope instead of using `self`.
+        def search_uploaded_documents(query: str) -> str:
+            """Search the user's uploaded documents for information relevant to a query.
+
+            Args:
+                query: A natural-language search query describing the information needed.
+
+            Returns:
+                Relevant passages from the uploaded knowledge base.
+            """
+            return search_knowledge_base(kb, query)
+
+        tools = [web_search, search_uploaded_documents, calculate]
 
         response = self.client.models.generate_content(
             model=self.model,
@@ -85,14 +100,3 @@ class ResearchAgent:
             return "MAX_TOKENS" in str(reason)
         except (AttributeError, IndexError, TypeError):
             return False
-
-    def _knowledge_search(self, query: str) -> str:
-        """Search the user's uploaded documents for information relevant to a query.
-
-        Args:
-            query: A natural-language search query describing the information needed.
-
-        Returns:
-            Relevant passages from the uploaded knowledge base.
-        """
-        return search_knowledge_base(self.knowledge_base, query)
