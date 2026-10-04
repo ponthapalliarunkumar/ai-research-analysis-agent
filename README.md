@@ -1,7 +1,8 @@
 # AI Research & Analysis Agent
 
 **Author:** Ponthapalli Arun Kumar  
-**GitHub:** https://github.com/ponthapalliarunkumar
+**GitHub:** https://github.com/ponthapalliarunkumar  
+**Live demo:** https://ai-research-analysis-agent-ea47ucepzoa85j6fnqmzcy.streamlit.app/
 
 **GenAI + Agentic AI + RAG + Web Research**
 
@@ -60,17 +61,17 @@ Cited research report
 
 ```text
 ai-research-analysis-agent/
-├── app.py
-├── agent.py
-├── tools.py
-├── knowledge_base.py
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── README.md
-├── data/
-└── .streamlit/
-    └── config.toml
+â”œâ”€â”€ app.py
+â”œâ”€â”€ agent.py
+â”œâ”€â”€ tools.py
+â”œâ”€â”€ knowledge_base.py
+â”œâ”€â”€ requirements.txt
+â”œâ”€â”€ .env.example
+â”œâ”€â”€ .gitignore
+â”œâ”€â”€ README.md
+â”œâ”€â”€ data/
+â””â”€â”€ .streamlit/
+    â””â”€â”€ config.toml
 ```
 
 ## Run locally
@@ -110,7 +111,7 @@ Copy `.env.example` to `.env` and add your API key:
 
 ```text
 GEMINI_API_KEY=your_real_key
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Never commit `.env`.
@@ -131,7 +132,7 @@ streamlit run app.py
 
 ```toml
 GEMINI_API_KEY = "your_real_key"
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 ```
 
 Do not put the API key in GitHub.
