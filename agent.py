@@ -1,11 +1,14 @@
+import time
+
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from knowledge_base import KnowledgeBase
 from tools import calculate, search_knowledge_base, web_search
 
 DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_HISTORY_MESSAGES = 6
+RETRY_DELAYS = [2, 5, 10]  # seconds to wait after a temporary 503/429 error
 
 SYSTEM_INSTRUCTION = """
 You are an AI Research & Analysis Agent.
@@ -57,7 +60,7 @@ class ResearchAgent:
 
         tools = [web_search, search_uploaded_documents, calculate]
 
-        response = self.client.models.generate_content(
+        response = self._generate_with_retry(
             model=self.model,
             contents=self._build_contents(user_request, history),
             config=types.GenerateContentConfig(
@@ -79,6 +82,17 @@ class ResearchAgent:
             text += "\n\n*Note: the report was cut off because it hit the output length limit.*"
 
         return text
+
+    def _generate_with_retry(self, **kwargs):
+        """Retry on temporary Gemini overload (503) and rate limits (429)."""
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            try:
+                return self.client.models.generate_content(**kwargs)
+            except errors.APIError as exc:
+                code = getattr(exc, "code", None)
+                if code not in (429, 503) or attempt == len(RETRY_DELAYS):
+                    raise
+                time.sleep(RETRY_DELAYS[attempt])
 
     @staticmethod
     def _build_contents(user_request: str, history: list[dict] | None) -> list[types.Content]:
