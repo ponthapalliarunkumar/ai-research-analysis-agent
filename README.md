@@ -1,7 +1,6 @@
 # AI Research & Analysis Agent
 
-**Author:** Ponthapalli Arun Kumar  
-**GitHub:** https://github.com/ponthapalliarunkumar  
+**Author:** Ponthapalli Arun Kumar   
 **Live demo:** https://ai-research-analysis-agent-ea47ucepzoa85j6fnqmzcy.streamlit.app/
 
 **GenAI + Agentic AI + RAG + Web Research**
