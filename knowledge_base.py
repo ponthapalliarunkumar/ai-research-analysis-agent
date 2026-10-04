@@ -1,19 +1,33 @@
 import io
 import re
-from typing import BinaryIO
+from typing import Any
 
 import numpy as np
+from docx import Document
 from google import genai
 from google.genai import types
 from pypdf import PdfReader
-from docx import Document
+
+EMBED_MODEL = "gemini-embedding-001"
+BATCH_SIZE = 64  # the embeddings endpoint limits texts per request
 
 
 class KnowledgeBase:
-    def __init__(self):
-        self.client = None
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key
+        self._client = None
         self.chunks: list[dict] = []
-        self.embeddings: np.ndarray | None = None
+        self.embeddings: np.ndarray | None = None  # unit-normalized rows
+
+    # ------------------------------------------------------------------ setup
+    @property
+    def client(self) -> genai.Client:
+        if self._client is None:
+            if self.api_key:
+                self._client = genai.Client(api_key=self.api_key)
+            else:
+                self._client = genai.Client()
+        return self._client
 
     @property
     def chunk_count(self) -> int:
@@ -23,7 +37,8 @@ class KnowledgeBase:
         self.chunks.clear()
         self.embeddings = None
 
-    def extract_text(self, uploaded_file: BinaryIO) -> str:
+    # ------------------------------------------------------------- extraction
+    def extract_text(self, uploaded_file: Any) -> str:
         name = uploaded_file.name.lower()
         raw = uploaded_file.getvalue()
 
@@ -40,22 +55,45 @@ class KnowledgeBase:
 
         raise ValueError("Unsupported file type.")
 
-    def add_document(self, filename: str, text: str) -> None:
+    # --------------------------------------------------------------- indexing
+    def add_document(self, filename: str, text: str) -> int:
+        """Chunk, embed and index a document. Returns the number of chunks added."""
         cleaned = re.sub(r"\s+", " ", text).strip()
         if not cleaned:
-            return
-
-        # Replace an existing upload with the same filename.
-        self.chunks = [c for c in self.chunks if c["source"] != filename]
-        self._rebuild_embeddings()
+            return 0
 
         pieces = self._chunk_text(cleaned, size=900, overlap=120)
-        for piece in pieces:
-            self.chunks.append({"source": filename, "text": piece})
 
-        self._rebuild_embeddings()
+        # Embed first: if the API call fails, the existing index stays untouched.
+        vectors = self._embed(pieces, task_type="RETRIEVAL_DOCUMENT")
 
-    def _chunk_text(self, text: str, size: int, overlap: int) -> list[str]:
+        # Replace an existing upload with the same filename.
+        self.remove_document(filename)
+
+        self.chunks.extend({"source": filename, "text": p} for p in pieces)
+        if self.embeddings is None:
+            self.embeddings = vectors
+        else:
+            self.embeddings = np.vstack([self.embeddings, vectors])
+
+        return len(pieces)
+
+    def remove_document(self, filename: str) -> None:
+        if not self.chunks:
+            return
+
+        keep = [i for i, c in enumerate(self.chunks) if c["source"] != filename]
+        if len(keep) == len(self.chunks):
+            return
+
+        self.chunks = [self.chunks[i] for i in keep]
+        if keep and self.embeddings is not None:
+            self.embeddings = self.embeddings[keep]
+        else:
+            self.embeddings = None
+
+    @staticmethod
+    def _chunk_text(text: str, size: int, overlap: int) -> list[str]:
         if len(text) <= size:
             return [text]
 
@@ -74,53 +112,30 @@ class KnowledgeBase:
 
         return chunks
 
-    def _embed(self, texts: list[str]) -> np.ndarray:
+    def _embed(self, texts: list[str], task_type: str) -> np.ndarray:
         if not texts:
             return np.empty((0, 0), dtype=np.float32)
 
-        if self.client is None:
-            self.client = genai.Client()
+        vectors: list[list[float]] = []
+        for i in range(0, len(texts), BATCH_SIZE):
+            response = self.client.models.embed_content(
+                model=EMBED_MODEL,
+                contents=texts[i : i + BATCH_SIZE],
+                config=types.EmbedContentConfig(task_type=task_type),
+            )
+            vectors.extend(item.values for item in response.embeddings)
 
-        model = "gemini-embedding-001"
-        response = self.client.models.embed_content(
-            model=model,
-            contents=texts,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
-        )
+        matrix = np.asarray(vectors, dtype=np.float32)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        return matrix / np.maximum(norms, 1e-12)
 
-        vectors = [item.values for item in response.embeddings]
-        return np.asarray(vectors, dtype=np.float32)
-
-    def _rebuild_embeddings(self) -> None:
-        if not self.chunks:
-            self.embeddings = None
-            return
-
-        texts = [item["text"] for item in self.chunks]
-        self.embeddings = self._embed(texts)
-
+    # ----------------------------------------------------------------- search
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         if not self.chunks or self.embeddings is None:
             return []
 
-        if self.client is None:
-            self.client = genai.Client()
-
-        response = self.client.models.embed_content(
-            model="gemini-embedding-001",
-            contents=query,
-            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
-        )
-        query_vector = np.asarray(response.embeddings[0].values, dtype=np.float32)
-
-        matrix = self.embeddings
-        matrix_norm = np.linalg.norm(matrix, axis=1, keepdims=True)
-        query_norm = np.linalg.norm(query_vector)
-
-        scores = (matrix @ query_vector) / (
-            np.maximum(matrix_norm[:, 0], 1e-12) * max(query_norm, 1e-12)
-        )
-
+        query_vector = self._embed([query], task_type="RETRIEVAL_QUERY")[0]
+        scores = self.embeddings @ query_vector  # cosine similarity (both normalized)
         indices = np.argsort(scores)[::-1][:top_k]
 
         return [
