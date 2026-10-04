@@ -69,7 +69,7 @@ class ResearchAgent:
                 temperature=0.2,
                 max_output_tokens=8192,
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                    maximum_remote_calls=10
+                    maximum_remote_calls=4
                 ),
             ),
         )
@@ -92,7 +92,7 @@ class ResearchAgent:
                 code = getattr(exc, "code", None)
                 if code not in (429, 503) or attempt == len(RETRY_DELAYS):
                     raise
-                time.sleep(RETRY_DELAYS[attempt])
+                time.sleep(35 if code == 429 else RETRY_DELAYS[attempt])
 
     @staticmethod
     def _build_contents(user_request: str, history: list[dict] | None) -> list[types.Content]:
