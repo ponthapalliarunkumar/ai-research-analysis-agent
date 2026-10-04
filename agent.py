@@ -4,7 +4,7 @@ from google.genai import types
 from knowledge_base import KnowledgeBase
 from tools import calculate, search_knowledge_base, web_search
 
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 MAX_HISTORY_MESSAGES = 6
 
 SYSTEM_INSTRUCTION = """
